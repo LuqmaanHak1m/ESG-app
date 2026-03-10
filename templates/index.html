@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESG Score Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>ESG Score Dashboard</h1>
+            <p class="subtitle">Real-time ESG Analysis with News Impact</p>
+        </header>
+
+        <div class="company-selector">
+            <label for="company-select">Select Company:</label>
+            <select id="company-select">
+                <option value="">Choose a company...</option>
+                {% for company in companies %}
+                <option value="{{ company }}">{{ company }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div id="dashboard-content" class="hidden">
+            <div class="score-overview">
+                <div class="score-card">
+                    <h3>Environmental</h3>
+                    <div class="score-display">
+                        <span class="score original" id="env-original">-</span>
+                        <span class="arrow" id="env-arrow"></span>
+                        <span class="score adjusted" id="env-adjusted">-</span>
+                    </div>
+                </div>
+                <div class="score-card">
+                    <h3>Social</h3>
+                    <div class="score-display">
+                        <span class="score original" id="social-original">-</span>
+                        <span class="arrow" id="social-arrow"></span>
+                        <span class="score adjusted" id="social-adjusted">-</span>
+                    </div>
+                </div>
+                <div class="score-card">
+                    <h3>Governance</h3>
+                    <div class="score-display">
+                        <span class="score original" id="gov-original">-</span>
+                        <span class="arrow" id="gov-arrow"></span>
+                        <span class="score adjusted" id="gov-adjusted">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>Score Breakdown</h3>
+                    <canvas id="breakdown-chart"></canvas>
+                </div>
+            </div>
+
+            <div class="news-section">
+                <h3>News Impact Analysis</h3>
+                <div id="news-articles">
+                    <p class="placeholder">No news articles analyzed yet</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+
+</html>
