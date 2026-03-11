@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from flask import Flask, render_template, jsonify, request
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -8,10 +9,11 @@ from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
+load_dotenv()
 # Configuration
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['ENV'] = os.environ.get('FLASK_ENV', 'production')
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://user:password@localhost:5432/esg_db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+app.config['ENV'] = os.environ.get('FLASK_ENV')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
     """Create a database connection"""
@@ -535,9 +537,9 @@ def get_analytics(company_name):
     max_date = company_articles[-1]['date'] if isinstance(company_articles[-1]['date'], datetime) else datetime.fromisoformat(str(company_articles[-1]['date']))
     
     # Create baseline scores from current ESG data or defaults
-    baseline_env = current_scores.get('Environmental', {}).get('score', 3.0)
-    baseline_social = current_scores.get('Social', {}).get('score', 3.0)
-    baseline_gov = current_scores.get('Governance', {}).get('score', 3.0)
+    baseline_env = float(current_scores.get('Environmental', {}).get('score', 3.0))
+    baseline_social = float(current_scores.get('Social', {}).get('score', 3.0))
+    baseline_gov = float(current_scores.get('Governance', {}).get('score', 3.0))
     
     # Generate data points at regular intervals
     current_date = min_date
@@ -550,9 +552,9 @@ def get_analytics(company_name):
         articles_to_date = [row for row in company_articles if (row['date'] if isinstance(row['date'], datetime) else datetime.fromisoformat(str(row['date']))) <= current_date]
         
         # Calculate cumulative impact
-        env_impact = sum(row['environmental'] or 0 for row in articles_to_date)
-        social_impact = sum(row['social'] or 0 for row in articles_to_date)
-        gov_impact = sum(row['governance'] or 0 for row in articles_to_date)
+        env_impact = sum(float(row['environmental'] or 0) for row in articles_to_date)
+        social_impact = sum(float(row['social'] or 0) for row in articles_to_date)
+        gov_impact = sum(float(row['governance'] or 0) for row in articles_to_date)
         
         # Calculate scores (clamped between 0 and 5)
         env_score = max(0, min(5, baseline_env - 0.5 + env_impact))
@@ -572,9 +574,9 @@ def get_analytics(company_name):
     
     # Ensure we have the final date
     if not historical_data or historical_data[-1]['date'] != max_date.strftime("%Y-%m-%d"):
-        env_impact = sum(row['environmental'] or 0 for row in company_articles)
-        social_impact = sum(row['social'] or 0 for row in company_articles)
-        gov_impact = sum(row['governance'] or 0 for row in company_articles)
+        env_impact = sum(float(row['environmental'] or 0) for row in company_articles)
+        social_impact = sum(float(row['social'] or 0) for row in company_articles)
+        gov_impact = sum(float(row['governance'] or 0) for row in company_articles)
         
         env_score = max(0, min(5, baseline_env - 0.5 + env_impact))
         social_score = max(0, min(5, baseline_social - 0.5 + social_impact))
