@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - ESG Score Dashboard{% endblock %}
+
+{% block content %}
+<header>
+    <h1>Analytics</h1>
+    <p class="subtitle">Track ESG score changes over time</p>
+</header>
+
+<div class="analytics-content">
+    <div class="analytics-selector">
+        <label for="analytics-company-select">Select Company:</label>
+        <select id="analytics-company-select">
+            <option value="">Choose a company...</option>
+            {% for company in companies %}
+            <option value="{{ company }}" {% if company==selected_company %}selected{% endif %}>{{ company }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div id="analytics-container" class="hidden">
+        <div class="chart-container analytics-chart">
+            <h3>ESG Score Trends</h3>
+            <canvas id="analytics-chart"></canvas>
+        </div>
+
+        <div class="analytics-stats">
+            <div class="stat-card">
+                <h4>Environmental</h4>
+                <div class="stat-value" id="env-current">-</div>
+                <div class="stat-change" id="env-change">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>Social</h4>
+                <div class="stat-value" id="social-current">-</div>
+                <div class="stat-change" id="social-change">-</div>
+            </div>
+            <div class="stat-card">
+                <h4>Governance</h4>
+                <div class="stat-value" id="gov-current">-</div>
+                <div class="stat-change" id="gov-change">-</div>
+            </div>
+            <div class="stat-card overall">
+                <h4>Overall</h4>
+                <div class="stat-value" id="overall-current">-</div>
+                <div class="stat-change" id="overall-change">-</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="no-selection" class="placeholder">
+        Select a company to view analytics
+    </div>
+</div>
+
+<script>
+    let analyticsChart = null;
+
+    document.getElementById('analytics-company-select').addEventListener('change', function () {
+        const company = this.value;
+        if (company) {
+            loadAnalytics(company);
+        } else {
+            document.getElementById('analytics-container').classList.add('hidden');
+            document.getElementById('no-selection').classList.remove('hidden');
+        }
+    });
+
+    // Load analytics on page load if company is selected
+    window.addEventListener('load', function () {
+        const selectedCompany = '{{ selected_company }}';
+        if (selectedCompany) {
+            loadAnalytics(selectedCompany);
+        }
+    });
+
+    async function loadAnalytics(company) {
+        try {
+            const response = await fetch(`/api/analytics/${company}`);
+            const data = await response.json();
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            displayAnalytics(data);
+            document.getElementById('analytics-container').classList.remove('hidden');
+            document.getElementById('no-selection').classList.add('hidden');
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+            alert('Failed to load analytics');
+        }
+    }
+
+    function displayAnalytics(data) {
+        const historicalData = data.historical_data;
+
+        // Extract data for chart
+        const dates = historicalData.map(d => d.date);
+        const environmental = historicalData.map(d => d.environmental);
+        const social = historicalData.map(d => d.social);
+        const governance = historicalData.map(d => d.governance);
+        const overall = historicalData.map(d => d.overall);
+
+        // Display current stats
+        const latestData = historicalData[historicalData.length - 1];
+        const firstData = historicalData[0];
+
+        displayStat('env', latestData.environmental, firstData.environmental);
+        displayStat('social', latestData.social, firstData.social);
+        displayStat('gov', latestData.governance, firstData.governance);
+        displayStat('overall', latestData.overall, firstData.overall);
+
+        // Create chart
+        const ctx = document.getElementById('analytics-chart').getContext('2d');
+
+        if (analyticsChart) {
+            analyticsChart.destroy();
+        }
+
+        analyticsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [
+                    {
+                        label: 'Overall',
+                        data: overall,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#667eea',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: 'Environmental',
+                        data: environmental,
+                        borderColor: '#27ae60',
+                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#27ae60',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5
+                    },
+                    {
+                        label: 'Social',
+                        data: social,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#e74c3c',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5
+                    },
+                    {
+                        label: 'Governance',
+                        data: governance,
+                        borderColor: '#f39c12',
+                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: false,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#f39c12',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        min: 0,
+                        max: 5,
+                        ticks: {
+                            stepSize: 0.5
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            size: 13
+                        },
+                        callbacks: {
+                            label: function (context) {
+                                return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function displayStat(prefix, current, initial) {
+        const change = current - initial;
+        const changePercent = ((change / initial) * 100).toFixed(1);
+
+        document.getElementById(`${prefix}-current`).textContent = current.toFixed(2);
+
+        const changeElement = document.getElementById(`${prefix}-change`);
+        const changeText = change >= 0 ? `+${change.toFixed(2)}` : `${change.toFixed(2)}`;
+        const changeClass = change >= 0 ? 'positive' : 'negative';
+
+        changeElement.textContent = `${changeText} (${changePercent}%)`;
+        changeElement.className = `stat-change ${changeClass}`;
+    }
+</script>
+{% endblock %}

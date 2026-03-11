@@ -152,10 +152,44 @@ def calculate_adjusted_scores(original_categories, processed_articles, company):
 
 @app.route('/')
 def index():
-    """Main dashboard page"""
+    """Home page"""
     df = load_esg_data()
     companies = df['company'].unique().tolist() if not df.empty else []
     return render_template('index.html', companies=companies)
+
+@app.route('/all-news')
+def all_news():
+    """All news page"""
+    df = load_esg_data()
+    companies = df['company'].unique().tolist() if not df.empty else []
+    return render_template('all_news.html', companies=companies)
+
+@app.route('/company/<company_name>')
+def company_page(company_name):
+    """Individual company page"""
+    df = load_esg_data()
+    companies = df['company'].unique().tolist() if not df.empty else []
+    if company_name not in companies:
+        return "Company not found", 404
+    return render_template('company.html', company=company_name, companies=companies)
+
+@app.route('/analytics')
+def analytics():
+    """Analytics page"""
+    df = load_esg_data()
+    companies = df['company'].unique().tolist() if not df.empty else []
+    selected_company = request.args.get('company', '')
+    return render_template('analytics.html', companies=companies, selected_company=selected_company)
+
+@app.route('/analytics/<company_name>')
+def analytics_for_company(company_name):
+    """Analytics page"""
+    df = load_esg_data()
+    companies = df['company'].unique().tolist() if not df.empty else []
+
+    get_analytics(company_name)
+
+    return render_template('analytics.html', companies=companies)
 
 @app.route('/api/company/<company_name>')
 def get_company_data(company_name):
@@ -260,6 +294,128 @@ def process_articles():
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/all-news')
+def get_all_news():
+    """API endpoint to get all news from all companies sorted chronologically"""
+    df = load_esg_data()
+    
+    if df.empty:
+        return jsonify({'error': 'No data available'}), 404
+    
+    companies = df['company'].unique().tolist()
+    all_articles = []
+    
+    # Collect articles from all companies
+    for company in companies:
+        if company == 'Nike':
+            articles = [
+                {
+                    "company": "Nike",
+                    "title": "Mitsui Signs Solar VPPA With NIKE Japan to Deliver 100% Renewable Power Across Operations",
+                    "climate_transition": 1.0,
+                    "energy_resource": 1.2,
+                    "summary": "Mitsui & Co. Project Solutions have signed a long term virtual power purchase agreement with NIKE Japan Group to supply renewable energy attributes generated from domestic solar power projects.",
+                    "date": "2024-03-08"
+                },
+                {
+                    "company": "Nike",
+                    "title": "Nike Announces New Sustainable Materials Initiative",
+                    "climate_transition": 0.8,
+                    "waste_pollution": 0.6,
+                    "biodiversity": 0.3,
+                    "summary": "Nike unveils plan to use 50% recycled materials in all products by 2025, reducing environmental footprint.",
+                    "date": "2024-03-05"
+                }
+            ]
+        elif company == 'Adidas':
+            articles = [
+                {
+                    "company": "Adidas",
+                    "title": "Adidas Factory Workers Report Safety Concerns in Vietnam Facility",
+                    "health_safety": -0.7,
+                    "labour_relations": -0.4,
+                    "human_rights_community": -0.3,
+                    "summary": "Workers at an Adidas supplier factory in Vietnam have raised concerns about workplace safety conditions, prompting an internal investigation.",
+                    "date": "2024-03-05"
+                },
+                {
+                    "company": "Adidas",
+                    "title": "Adidas Improves Board Diversity with New Appointments",
+                    "board_management": 0.5,
+                    "conduct_anti_corruption": 0.2,
+                    "summary": "Adidas announces three new board members focused on sustainability and diversity initiatives.",
+                    "date": "2024-03-01"
+                }
+            ]
+        else:
+            articles = []
+        
+        all_articles.extend(articles)
+    
+    # Process articles
+    processed_articles = process_article_data(all_articles)
+    
+    # Sort by date (newest first)
+    processed_articles.sort(key=lambda x: dt.datetime.strptime(x['date'], "%Y-%m-%d"), reverse=True)
+    
+    return jsonify({
+        'articles': processed_articles,
+        'count': len(processed_articles)
+    })
+
+@app.route('/api/analytics/<company_name>')
+def get_analytics(company_name):
+    """API endpoint to get historical ESG scores for analytics"""
+    df = load_esg_data()
+    
+    if df.empty or company_name not in df['company'].values:
+        return jsonify({'error': 'Company not found'}), 404
+    
+    # Generate historical data with simulated changes based on news impact
+    # In a real app, this would come from a database with historical records
+    
+    # Get current scores
+    current_scores = calculate_category_scores(df, company_name)
+    
+    # Simulate historical data (in production, this would be from a database)
+    historical_data = []
+    
+    if company_name == 'Nike':
+        historical_data = [
+            {"date": "2024-01-01", "environmental": 3.2, "social": 3.5, "governance": 3.8},
+            {"date": "2024-01-15", "environmental": 3.3, "social": 3.5, "governance": 3.8},
+            {"date": "2024-02-01", "environmental": 3.4, "social": 3.6, "governance": 3.9},
+            {"date": "2024-02-15", "environmental": 3.5, "social": 3.6, "governance": 3.9},
+            {"date": "2024-03-01", "environmental": 3.6, "social": 3.7, "governance": 4.0},
+            {"date": "2024-03-05", "environmental": 3.7, "social": 3.7, "governance": 4.0},
+            {"date": "2024-03-08", "environmental": 3.8, "social": 3.7, "governance": 4.0},
+        ]
+    elif company_name == 'Adidas':
+        historical_data = [
+            {"date": "2024-01-01", "environmental": 3.0, "social": 3.2, "governance": 3.5},
+            {"date": "2024-01-15", "environmental": 3.1, "social": 3.2, "governance": 3.5},
+            {"date": "2024-02-01", "environmental": 3.2, "social": 3.3, "governance": 3.6},
+            {"date": "2024-02-15", "environmental": 3.3, "social": 3.3, "governance": 3.6},
+            {"date": "2024-03-01", "environmental": 3.4, "social": 3.2, "governance": 3.7},
+            {"date": "2024-03-05", "environmental": 3.4, "social": 2.9, "governance": 3.7},
+        ]
+    else:
+        # Default historical data for other companies
+        historical_data = [
+            {"date": "2024-01-01", "environmental": 3.0, "social": 3.0, "governance": 3.0},
+            {"date": "2024-02-01", "environmental": 3.1, "social": 3.1, "governance": 3.1},
+            {"date": "2024-03-01", "environmental": 3.2, "social": 3.2, "governance": 3.2},
+        ]
+    
+    # Calculate overall scores
+    for entry in historical_data:
+        entry['overall'] = round((entry['environmental'] + entry['social'] + entry['governance']) / 3, 2)
+    
+    return jsonify({
+        'company': company_name,
+        'historical_data': historical_data
+    })
 
 @app.route('/health')
 def health():

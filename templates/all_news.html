@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}All News - ESG Score Dashboard{% endblock %}
+
+{% block content %}
+<header>
+    <h1>All News</h1>
+    <p class="subtitle">Chronological view of all company news and ESG impact</p>
+</header>
+
+<div class="all-news-content">
+    <div id="all-news-articles">
+        <p class="placeholder">Loading news...</p>
+    </div>
+</div>
+
+<script>
+    async function loadAllNews() {
+        try {
+            const response = await fetch('/api/all-news');
+            const data = await response.json();
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            displayAllNews(data);
+        } catch (error) {
+            console.error('Error loading all news:', error);
+            alert('Failed to load news');
+        }
+    }
+
+    function displayAllNews(data) {
+        const newsContainer = document.getElementById('all-news-articles');
+
+        if (!data.articles || data.articles.length === 0) {
+            newsContainer.innerHTML = '<p class="placeholder">No news articles available</p>';
+            return;
+        }
+
+        newsContainer.innerHTML = data.articles.map(article => `
+        <div class="news-article all-news-item">
+            <div class="news-header">
+                <div>
+                    <h4>${article.title}</h4>
+                    <p class="company-name"><a href="/company/${article.company}">${article.company}</a></p>
+                </div>
+            </div>
+            <p>${article.summary || 'No summary available'}</p>
+            ${article.date ? `<p style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px;">Date: ${article.date}</p>` : ''}
+            <div class="impact">
+                ${Object.entries(article.impact || {}).map(([metric, score]) => {
+            const isPositive = score > 0;
+            return `<span class="impact-badge ${isPositive ? 'positive' : 'negative'}">
+                        ${metric}: ${score > 0 ? '+' : ''}${score.toFixed(1)}
+                    </span>`;
+        }).join('')}
+            </div>
+        </div>
+    `).join('');
+    }
+
+    // Load news on page load
+    loadAllNews();
+</script>
+{% endblock %}
