@@ -3,6 +3,7 @@ from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import json
 import datetime as dt
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -17,6 +18,17 @@ def load_esg_data():
         return df
     except Exception as e:
         print(f"Error loading ESG data: {e}")
+        return pd.DataFrame()
+
+def load_articles_data():
+    """Load articles with ESG scores from CSV"""
+    try:
+        df = pd.read_csv('articles_scored.csv')
+        # Convert date to datetime
+        df['date'] = pd.to_datetime(df['date'])
+        return df
+    except Exception as e:
+        print(f"Error loading articles data: {e}")
         return pd.DataFrame()
 
 def calculate_category_scores(df, company):
@@ -141,11 +153,16 @@ def calculate_adjusted_scores(original_categories, processed_articles, company):
             total_adjustment += impact
         
         # Calculate new category average
-        adjusted_avg = sum(m['adjusted_score'] for m in adjusted_metrics) / len(adjusted_metrics)
+        if len(adjusted_metrics) > 0:
+            adjusted_avg = sum(m['adjusted_score'] for m in adjusted_metrics) / len(adjusted_metrics)
+            change = round(total_adjustment / len(adjusted_metrics), 2)
+        else:
+            adjusted_avg = category_data['score']
+            change = 0
         
         adjusted_categories[category] = {
             'score': round(adjusted_avg, 2),
-            'change': round(total_adjustment / len(adjusted_metrics), 2)
+            'change': change
         }
     
     return adjusted_categories
@@ -153,31 +170,44 @@ def calculate_adjusted_scores(original_categories, processed_articles, company):
 @app.route('/')
 def index():
     """Home page"""
-    df = load_esg_data()
-    companies = df['company'].unique().tolist() if not df.empty else []
+    articles_df = load_articles_data()
+    companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies.sort()
     return render_template('index.html', companies=companies)
 
 @app.route('/all-news')
 def all_news():
     """All news page"""
-    df = load_esg_data()
-    companies = df['company'].unique().tolist() if not df.empty else []
+    articles_df = load_articles_data()
+    companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies.sort()
     return render_template('all_news.html', companies=companies)
 
 @app.route('/company/<company_name>')
 def company_page(company_name):
     """Individual company page"""
-    df = load_esg_data()
-    companies = df['company'].unique().tolist() if not df.empty else []
-    if company_name not in companies:
+    articles_df = load_articles_data()
+    companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies.sort()
+    
+    # Find the correct company name (case-insensitive)
+    correct_company_name = None
+    for company in companies:
+        if company.lower() == company_name.lower():
+            correct_company_name = company
+            break
+    
+    if correct_company_name is None:
         return "Company not found", 404
-    return render_template('company.html', company=company_name, companies=companies)
+    
+    return render_template('company.html', company=correct_company_name, companies=companies)
 
 @app.route('/analytics')
 def analytics():
     """Analytics page"""
-    df = load_esg_data()
-    companies = df['company'].unique().tolist() if not df.empty else []
+    articles_df = load_articles_data()
+    companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies.sort()
     selected_company = request.args.get('company', '')
     return render_template('analytics.html', companies=companies, selected_company=selected_company)
 
@@ -194,71 +224,116 @@ def analytics_for_company(company_name):
 @app.route('/api/company/<company_name>')
 def get_company_data(company_name):
     """API endpoint to get company ESG data"""
-    df = load_esg_data()
+    print(f"\n=== GET /api/company/{company_name} ===")
     
-    if df.empty:
-        return jsonify({'error': 'No data available'}), 404
-    
-    if company_name not in df['company'].values:
-        return jsonify({'error': 'Company not found'}), 404
-    
-    categories = calculate_category_scores(df, company_name)
-    
-    # Example article data (this would come from your LLM analysis)
-    example_articles = []
-    
-    if company_name == 'Nike':
-        example_articles = [
-            {
-                "company": "Nike",
-                "title": "Mitsui Signs Solar VPPA With NIKE Japan to Deliver 100% Renewable Power Across Operations",
-                "climate_transition": 1.0,
-                "energy_resource": 1.2,
-                "summary": "Mitsui & Co. Project Solutions have signed a long term virtual power purchase agreement with NIKE Japan Group to supply renewable energy attributes generated from domestic solar power projects.",
-                "date": "2024/03-08"
-            },
-            {
-                "company": "Nike",
-                "title": "Nike Announces New Sustainable Materials Initiative",
-                "climate_transition": 0.8,
-                "waste_pollution": 0.6,
-                "biodiversity": 0.3,
-                "summary": "Nike unveils plan to use 50% recycled materials in all products by 2025, reducing environmental footprint.",
-                "date": "2024-03-05"
+    try:
+        df = load_esg_data()
+        articles_df = load_articles_data()
+        
+        print(f"ESG data loaded: {len(df)} rows")
+        print(f"Articles data loaded: {len(articles_df)} rows")
+        
+        if articles_df.empty:
+            print("ERROR: Articles dataframe is empty")
+            return jsonify({'error': 'No data available'}), 404
+        
+        # Check if company exists in articles data (case-insensitive)
+        print(f"Looking for company: '{company_name}'")
+        print(f"Available companies: {articles_df['company_name'].unique().tolist()}")
+        
+        company_articles = articles_df[articles_df['company_name'].str.lower() == company_name.lower()]
+        print(f"Found {len(company_articles)} articles for {company_name}")
+        
+        if company_articles.empty:
+            print(f"ERROR: No articles found for company '{company_name}'")
+            return jsonify({'error': 'Company not found'}), 404
+        
+        # Get the correct company name from the data
+        correct_company_name = company_articles.iloc[0]['company_name']
+        print(f"Using correct company name: '{correct_company_name}'")
+        
+        # Try to get ESG scores if available
+        categories = {}
+        if not df.empty:
+            # Check for ESG data case-insensitively
+            esg_company = None
+            for company in df['company'].unique():
+                if company.lower() == correct_company_name.lower():
+                    esg_company = company
+                    break
+            
+            if esg_company:
+                print(f"Found ESG data for {esg_company} (matched from {correct_company_name})")
+                categories = calculate_category_scores(df, esg_company)
+                print(f"Categories: {list(categories.keys())}")
+            else:
+                print(f"No ESG data found for {correct_company_name}, using defaults")
+                categories = {
+                    'Environmental': {'score': 0, 'metrics': []},
+                    'Social': {'score': 0, 'metrics': []},
+                    'Governance': {'score': 0, 'metrics': []}
+                }
+        else:
+            print(f"No ESG data found for {correct_company_name}, using defaults")
+            # Create default categories if no ESG data available
+            categories = {
+                'Environmental': {'score': 0, 'metrics': []},
+                'Social': {'score': 0, 'metrics': []},
+                'Governance': {'score': 0, 'metrics': []}
             }
-        ]
-    
-    elif company_name == 'Adidas':
-        example_articles = [
-            {
-                "company": "Adidas",
-                "title": "Adidas Factory Workers Report Safety Concerns in Vietnam Facility",
-                "health_safety": -0.7,
-                "labour_relations": -0.4,
-                "human_rights_community": -0.3,
-                "summary": "Workers at an Adidas supplier factory in Vietnam have raised concerns about workplace safety conditions, prompting an internal investigation.",
-                "date": "2024-03-05"
-            },
-            {
-                "company": "Adidas",
-                "title": "Adidas Improves Board Diversity with New Appointments",
-                "board_management": 0.5,
-                "conduct_anti_corruption": 0.2,
-                "summary": "Adidas announces three new board members focused on sustainability and diversity initiatives.",
-                "date": "2024-03-01"
+        
+        # Convert articles to the format expected by process_article_data
+        articles_list = []
+        for _, row in company_articles.iterrows():
+            # Handle NaN values
+            title = row['title'] if pd.notna(row['title']) else 'Unknown Article'
+            summary = row['introduction'] if pd.notna(row['introduction']) else ''
+            
+            article = {
+                'company': row['company_name'],
+                'title': title,
+                'summary': summary,
+                'date': row['date'].strftime("%Y-%m-%d") if pd.notna(row['date']) else '',
+                'climate_transition': float(row['climate_transition']) if pd.notna(row['climate_transition']) else 0.0,
+                'energy_resource': float(row['energy_resource']) if pd.notna(row['energy_resource']) else 0.0,
+                'biodiversity': float(row['biodiversity']) if pd.notna(row['biodiversity']) else 0.0,
+                'water_use': float(row['water_use']) if pd.notna(row['water_use']) else 0.0,
+                'waste_pollution': float(row['waste_pollution']) if pd.notna(row['waste_pollution']) else 0.0,
+                'labour_relations': float(row['labour_relations']) if pd.notna(row['labour_relations']) else 0.0,
+                'health_safety': float(row['health_safety']) if pd.notna(row['health_safety']) else 0.0,
+                'human_rights_community': float(row['human_rights_community']) if pd.notna(row['human_rights_community']) else 0.0,
+                'board_management': float(row['board_management']) if pd.notna(row['board_management']) else 0.0,
+                'shareholder_rights': float(row['shareholder_rights']) if pd.notna(row['shareholder_rights']) else 0.0,
+                'conduct_anti_corruption': float(row['conduct_anti_corruption']) if pd.notna(row['conduct_anti_corruption']) else 0.0,
+                'tax_transparency_accounting': float(row['tax_transparency_accounting']) if pd.notna(row['tax_transparency_accounting']) else 0.0,
             }
-        ]
-    
-    # Process articles and calculate adjusted scores
-    processed_articles = process_article_data(example_articles)
-    adjusted_scores = calculate_adjusted_scores(categories, processed_articles, company_name)
-    
-    return jsonify({
-        'company': company_name,
-        'original_scores': categories,
-        'adjusted_scores': adjusted_scores,
-        'news_articles': processed_articles
-    })
+            articles_list.append(article)
+        
+        print(f"Converted {len(articles_list)} articles to list format")
+        
+        # Process articles and calculate adjusted scores
+        processed_articles = process_article_data(articles_list)
+        print(f"Processed {len(processed_articles)} articles")
+        
+        adjusted_scores = calculate_adjusted_scores(categories, processed_articles, correct_company_name)
+        print(f"Calculated adjusted scores: {list(adjusted_scores.keys())}")
+        
+        response = {
+            'company': correct_company_name,
+            'original_scores': categories,
+            'adjusted_scores': adjusted_scores,
+            'news_articles': processed_articles
+        }
+        
+        print(f"SUCCESS: Returning data for {correct_company_name}")
+        print(f"Response keys: {list(response.keys())}")
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"ERROR in get_company_data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/process-articles', methods=['POST'])
 def process_articles():
@@ -298,66 +373,43 @@ def process_articles():
 @app.route('/api/all-news')
 def get_all_news():
     """API endpoint to get all news from all companies sorted chronologically"""
-    df = load_esg_data()
+    articles_df = load_articles_data()
     
-    if df.empty:
+    if articles_df.empty:
         return jsonify({'error': 'No data available'}), 404
     
-    companies = df['company'].unique().tolist()
-    all_articles = []
-    
-    # Collect articles from all companies
-    for company in companies:
-        if company == 'Nike':
-            articles = [
-                {
-                    "company": "Nike",
-                    "title": "Mitsui Signs Solar VPPA With NIKE Japan to Deliver 100% Renewable Power Across Operations",
-                    "climate_transition": 1.0,
-                    "energy_resource": 1.2,
-                    "summary": "Mitsui & Co. Project Solutions have signed a long term virtual power purchase agreement with NIKE Japan Group to supply renewable energy attributes generated from domestic solar power projects.",
-                    "date": "2024-03-08"
-                },
-                {
-                    "company": "Nike",
-                    "title": "Nike Announces New Sustainable Materials Initiative",
-                    "climate_transition": 0.8,
-                    "waste_pollution": 0.6,
-                    "biodiversity": 0.3,
-                    "summary": "Nike unveils plan to use 50% recycled materials in all products by 2025, reducing environmental footprint.",
-                    "date": "2024-03-05"
-                }
-            ]
-        elif company == 'Adidas':
-            articles = [
-                {
-                    "company": "Adidas",
-                    "title": "Adidas Factory Workers Report Safety Concerns in Vietnam Facility",
-                    "health_safety": -0.7,
-                    "labour_relations": -0.4,
-                    "human_rights_community": -0.3,
-                    "summary": "Workers at an Adidas supplier factory in Vietnam have raised concerns about workplace safety conditions, prompting an internal investigation.",
-                    "date": "2024-03-05"
-                },
-                {
-                    "company": "Adidas",
-                    "title": "Adidas Improves Board Diversity with New Appointments",
-                    "board_management": 0.5,
-                    "conduct_anti_corruption": 0.2,
-                    "summary": "Adidas announces three new board members focused on sustainability and diversity initiatives.",
-                    "date": "2024-03-01"
-                }
-            ]
-        else:
-            articles = []
+    # Convert articles to the format expected by process_article_data
+    articles_list = []
+    for _, row in articles_df.iterrows():
+        # Handle NaN values
+        title = row['title'] if pd.notna(row['title']) else 'Unknown Article'
+        summary = row['introduction'] if pd.notna(row['introduction']) else ''
         
-        all_articles.extend(articles)
+        article = {
+            'company': row['company_name'],
+            'title': title,
+            'summary': summary,
+            'date': row['date'].strftime("%Y-%m-%d") if pd.notna(row['date']) else '',
+            'climate_transition': float(row['climate_transition']) if pd.notna(row['climate_transition']) else 0.0,
+            'energy_resource': float(row['energy_resource']) if pd.notna(row['energy_resource']) else 0.0,
+            'biodiversity': float(row['biodiversity']) if pd.notna(row['biodiversity']) else 0.0,
+            'water_use': float(row['water_use']) if pd.notna(row['water_use']) else 0.0,
+            'waste_pollution': float(row['waste_pollution']) if pd.notna(row['waste_pollution']) else 0.0,
+            'labour_relations': float(row['labour_relations']) if pd.notna(row['labour_relations']) else 0.0,
+            'health_safety': float(row['health_safety']) if pd.notna(row['health_safety']) else 0.0,
+            'human_rights_community': float(row['human_rights_community']) if pd.notna(row['human_rights_community']) else 0.0,
+            'board_management': float(row['board_management']) if pd.notna(row['board_management']) else 0.0,
+            'shareholder_rights': float(row['shareholder_rights']) if pd.notna(row['shareholder_rights']) else 0.0,
+            'conduct_anti_corruption': float(row['conduct_anti_corruption']) if pd.notna(row['conduct_anti_corruption']) else 0.0,
+            'tax_transparency_accounting': float(row['tax_transparency_accounting']) if pd.notna(row['tax_transparency_accounting']) else 0.0,
+        }
+        articles_list.append(article)
     
     # Process articles
-    processed_articles = process_article_data(all_articles)
+    processed_articles = process_article_data(articles_list)
     
     # Sort by date (newest first)
-    processed_articles.sort(key=lambda x: dt.datetime.strptime(x['date'], "%Y-%m-%d"), reverse=True)
+    processed_articles.sort(key=lambda x: datetime.strptime(x['date'], "%Y-%m-%d"), reverse=True)
     
     return jsonify({
         'articles': processed_articles,
@@ -368,52 +420,102 @@ def get_all_news():
 def get_analytics(company_name):
     """API endpoint to get historical ESG scores for analytics"""
     df = load_esg_data()
+    articles_df = load_articles_data()
     
-    if df.empty or company_name not in df['company'].values:
+    if articles_df.empty:
+        return jsonify({'error': 'No data available'}), 404
+    
+    # Get articles for this company (case-insensitive)
+    company_articles = articles_df[articles_df['company_name'].str.lower() == company_name.lower()].copy()
+    
+    if company_articles.empty:
         return jsonify({'error': 'Company not found'}), 404
     
-    # Generate historical data with simulated changes based on news impact
-    # In a real app, this would come from a database with historical records
+    # Get the correct company name from the data
+    correct_company_name = company_articles.iloc[0]['company_name']
     
-    # Get current scores
-    current_scores = calculate_category_scores(df, company_name)
+    # Get current scores if available
+    current_scores = {}
+    if not df.empty:
+        # Check for ESG data case-insensitively
+        esg_company = None
+        for company in df['company'].unique():
+            if company.lower() == correct_company_name.lower():
+                esg_company = company
+                break
+        
+        if esg_company:
+            print(f"Found ESG data for {esg_company} (matched from {correct_company_name})")
+            current_scores = calculate_category_scores(df, esg_company)
+        else:
+            print(f"No ESG data found for {correct_company_name}, using defaults")
     
-    # Simulate historical data (in production, this would be from a database)
+    # Sort by date
+    company_articles = company_articles.sort_values('date')
+    
+    # Generate historical data by accumulating article impacts over time
     historical_data = []
     
-    if company_name == 'Nike':
-        historical_data = [
-            {"date": "2024-01-01", "environmental": 3.2, "social": 3.5, "governance": 3.8},
-            {"date": "2024-01-15", "environmental": 3.3, "social": 3.5, "governance": 3.8},
-            {"date": "2024-02-01", "environmental": 3.4, "social": 3.6, "governance": 3.9},
-            {"date": "2024-02-15", "environmental": 3.5, "social": 3.6, "governance": 3.9},
-            {"date": "2024-03-01", "environmental": 3.6, "social": 3.7, "governance": 4.0},
-            {"date": "2024-03-05", "environmental": 3.7, "social": 3.7, "governance": 4.0},
-            {"date": "2024-03-08", "environmental": 3.8, "social": 3.7, "governance": 4.0},
-        ]
-    elif company_name == 'Adidas':
-        historical_data = [
-            {"date": "2024-01-01", "environmental": 3.0, "social": 3.2, "governance": 3.5},
-            {"date": "2024-01-15", "environmental": 3.1, "social": 3.2, "governance": 3.5},
-            {"date": "2024-02-01", "environmental": 3.2, "social": 3.3, "governance": 3.6},
-            {"date": "2024-02-15", "environmental": 3.3, "social": 3.3, "governance": 3.6},
-            {"date": "2024-03-01", "environmental": 3.4, "social": 3.2, "governance": 3.7},
-            {"date": "2024-03-05", "environmental": 3.4, "social": 2.9, "governance": 3.7},
-        ]
-    else:
-        # Default historical data for other companies
-        historical_data = [
-            {"date": "2024-01-01", "environmental": 3.0, "social": 3.0, "governance": 3.0},
-            {"date": "2024-02-01", "environmental": 3.1, "social": 3.1, "governance": 3.1},
-            {"date": "2024-03-01", "environmental": 3.2, "social": 3.2, "governance": 3.2},
-        ]
+    # Get date range
+    min_date = company_articles['date'].min()
+    max_date = company_articles['date'].max()
     
-    # Calculate overall scores
-    for entry in historical_data:
-        entry['overall'] = round((entry['environmental'] + entry['social'] + entry['governance']) / 3, 2)
+    # Create baseline scores from current ESG data or defaults
+    baseline_env = current_scores.get('Environmental', {}).get('score', 3.0)
+    baseline_social = current_scores.get('Social', {}).get('score', 3.0)
+    baseline_gov = current_scores.get('Governance', {}).get('score', 3.0)
+    
+    # Generate data points at regular intervals
+    current_date = min_date
+    env_score = baseline_env - 0.5  # Start slightly lower
+    social_score = baseline_social - 0.5
+    gov_score = baseline_gov - 0.5
+    
+    while current_date <= max_date:
+        # Get articles up to this date
+        articles_to_date = company_articles[company_articles['date'] <= current_date]
+        
+        # Calculate cumulative impact
+        env_impact = articles_to_date['environmental'].sum()
+        social_impact = articles_to_date['social'].sum()
+        gov_impact = articles_to_date['governance'].sum()
+        
+        # Calculate scores (clamped between 0 and 5)
+        env_score = max(0, min(5, baseline_env - 0.5 + env_impact))
+        social_score = max(0, min(5, baseline_social - 0.5 + social_impact))
+        gov_score = max(0, min(5, baseline_gov - 0.5 + gov_impact))
+        
+        historical_data.append({
+            'date': current_date.strftime("%Y-%m-%d"),
+            'environmental': round(env_score, 2),
+            'social': round(social_score, 2),
+            'governance': round(gov_score, 2),
+            'overall': round((env_score + social_score + gov_score) / 3, 2)
+        })
+        
+        # Move to next week
+        current_date += timedelta(days=7)
+    
+    # Ensure we have the final date
+    if not historical_data or historical_data[-1]['date'] != max_date.strftime("%Y-%m-%d"):
+        env_impact = company_articles['environmental'].sum()
+        social_impact = company_articles['social'].sum()
+        gov_impact = company_articles['governance'].sum()
+        
+        env_score = max(0, min(5, baseline_env - 0.5 + env_impact))
+        social_score = max(0, min(5, baseline_social - 0.5 + social_impact))
+        gov_score = max(0, min(5, baseline_gov - 0.5 + gov_impact))
+        
+        historical_data.append({
+            'date': max_date.strftime("%Y-%m-%d"),
+            'environmental': round(env_score, 2),
+            'social': round(social_score, 2),
+            'governance': round(gov_score, 2),
+            'overall': round((env_score + social_score + gov_score) / 3, 2)
+        })
     
     return jsonify({
-        'company': company_name,
+        'company': correct_company_name,
         'historical_data': historical_data
     })
 
