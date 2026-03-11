@@ -1,0 +1,31 @@
+company,category,metric,score
+Adidas,Environmental,Environmental,3.2
+Adidas,Environmental,Climate Transition,5
+Adidas,Environmental,Energy & Resource Use,3
+Adidas,Environmental,Biodiversity,4
+Adidas,Environmental,Water Use,1
+Adidas,Environmental,Waste & Pollution,2
+Adidas,Social,Social,3.8
+Adidas,Social,Labour Reations,4
+Adidas,Social,Health & Safety,3
+Adidas,Social,Human Rights & Community,5
+Adidas,Governance,Governance,3.5
+Adidas,Governance,Board & Management,3
+Adidas,Governance,Shareholder Rights,4
+Adidas,Governance,Conduct & Anti-Corruption,4
+Adidas,Governance,Tax Transperancy & Accounting,3
+Nike,Environmental,Environmental,3.3
+Nike,Environmental,Climate Transition,5
+Nike,Environmental,Energy & Resource Use,3
+Nike,Environmental,Biodiversity,1
+Nike,Environmental,Water Use,3
+Nike,Environmental,Waste & Pollution,3
+Nike,Social,Social,2.1
+Nike,Social,Labour Reations,3
+Nike,Social,Health & Safety,1
+Nike,Social,Human Rights & Community,2
+Nike,Governance,Governance,3.8
+Nike,Governance,Board & Management,3
+Nike,Governance,Shareholder Rights,5
+Nike,Governance,Conduct & Anti-Corruption,3
+Nike,Governance,Tax Transperancy & Accounting,3
