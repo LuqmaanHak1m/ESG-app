@@ -194,7 +194,7 @@
 
         newsContainer.innerHTML = data.news_articles.map(article => `
         <div class="news-article">
-            <h4>${article.title}</h4>
+            <h4><a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a></h4>
             <p>${article.summary || 'No summary available'}</p>
             ${article.date ? `<p style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px;">Date: ${article.date}</p>` : ''}
             <div class="impact">

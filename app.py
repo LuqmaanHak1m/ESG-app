@@ -98,6 +98,7 @@ def process_article_data(articles_data):
             'company': article.get('company', 'Unknown Company'),
             'summary': article.get('summary', 'Analysis based on ESG impact scoring'),
             'date': article.get('date', dt.datetime.today().strftime("%d/%m/%Y")),  # Default to current date
+            'url': article.get('url', ''),
             'impact': impact,
             'overall_sentiment': overall_sentiment
         }
@@ -173,6 +174,7 @@ def index():
     """Home page"""
     articles_df = load_articles_data()
     companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies = [c.capitalize() for c in companies]
     companies.sort()
     return render_template('index.html', companies=companies)
 
@@ -181,6 +183,7 @@ def all_news():
     """All news page"""
     articles_df = load_articles_data()
     companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies = [c.capitalize() for c in companies]
     companies.sort()
     return render_template('all_news.html', companies=companies)
 
@@ -189,6 +192,7 @@ def company_page(company_name):
     """Individual company page"""
     articles_df = load_articles_data()
     companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies = [c.capitalize() for c in companies]
     companies.sort()
     
     # Find the correct company name (case-insensitive)
@@ -208,6 +212,7 @@ def analytics():
     """Analytics page"""
     articles_df = load_articles_data()
     companies = articles_df['company_name'].unique().tolist() if not articles_df.empty else []
+    companies = [c.capitalize() for c in companies]
     companies.sort()
     selected_company = request.args.get('company', '')
     return render_template('analytics.html', companies=companies, selected_company=selected_company)
@@ -291,10 +296,11 @@ def get_company_data(company_name):
             summary = row['introduction'] if pd.notna(row['introduction']) else ''
             
             article = {
-                'company': row['company_name'],
+                'company': row['company_name'].capitalize(),
                 'title': title,
                 'summary': summary,
                 'date': row['date'].strftime("%Y-%m-%d") if pd.notna(row['date']) else '',
+                'url': row['url'] if pd.notna(row['url']) else '',
                 'climate_transition': float(row['climate_transition']) if pd.notna(row['climate_transition']) else 0.0,
                 'energy_resource': float(row['energy_resource']) if pd.notna(row['energy_resource']) else 0.0,
                 'biodiversity': float(row['biodiversity']) if pd.notna(row['biodiversity']) else 0.0,
@@ -311,16 +317,18 @@ def get_company_data(company_name):
             articles_list.append(article)
         
         print(f"Converted {len(articles_list)} articles to list format")
+        print(f"Sample article URL: {articles_list[0].get('url') if articles_list else 'No articles'}")
         
         # Process articles and calculate adjusted scores
         processed_articles = process_article_data(articles_list)
         print(f"Processed {len(processed_articles)} articles")
+        print(f"Sample processed article: {processed_articles[0] if processed_articles else 'No articles'}")
         
         adjusted_scores = calculate_adjusted_scores(categories, processed_articles, correct_company_name)
         print(f"Calculated adjusted scores: {list(adjusted_scores.keys())}")
         
         response = {
-            'company': correct_company_name,
+            'company': correct_company_name.capitalize(),
             'original_scores': categories,
             'adjusted_scores': adjusted_scores,
             'news_articles': processed_articles
@@ -375,6 +383,8 @@ def process_articles():
 def get_all_news():
     """API endpoint to get all news from all companies sorted chronologically"""
     articles_df = load_articles_data()
+
+    print(articles_df["url"])
     
     if articles_df.empty:
         return jsonify({'error': 'No data available'}), 404
@@ -387,10 +397,11 @@ def get_all_news():
         summary = row['introduction'] if pd.notna(row['introduction']) else ''
         
         article = {
-            'company': row['company_name'],
+            'company': row['company_name'].capitalize(),
             'title': title,
             'summary': summary,
             'date': row['date'].strftime("%Y-%m-%d") if pd.notna(row['date']) else '',
+            'url': row['url'] if pd.notna(row['url']) else '',
             'climate_transition': float(row['climate_transition']) if pd.notna(row['climate_transition']) else 0.0,
             'energy_resource': float(row['energy_resource']) if pd.notna(row['energy_resource']) else 0.0,
             'biodiversity': float(row['biodiversity']) if pd.notna(row['biodiversity']) else 0.0,
@@ -411,6 +422,8 @@ def get_all_news():
     
     # Sort by date (newest first)
     processed_articles.sort(key=lambda x: datetime.strptime(x['date'], "%Y-%m-%d"), reverse=True)
+
+    print(processed_articles[0])
     
     return jsonify({
         'articles': processed_articles,
@@ -516,7 +529,7 @@ def get_analytics(company_name):
         })
     
     return jsonify({
-        'company': correct_company_name,
+        'company': correct_company_name.capitalize(),
         'historical_data': historical_data
     })
 

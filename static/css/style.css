@@ -621,3 +621,16 @@ h1 {
 .stat-change.negative {
     color: #e74c3c;
 }
+
+
+/* Article title links */
+.news-article h4 a {
+    color: #2c3e50;
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+.news-article h4 a:hover {
+    color: #667eea;
+    text-decoration: underline;
+}
