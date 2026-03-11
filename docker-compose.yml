@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  esg-app:
+    build: .
+    container_name: esg-dashboard
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount local data directory for CSV files
+      - ./data:/app/data
+    environment:
+      - FLASK_ENV=production
+      - DATA_SOURCE=local
+      # For future cloud storage, uncomment and configure:
+      # - DATA_SOURCE=cloud
+      # - CLOUD_PROVIDER=aws  # or gcp, azure
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      # - AWS_REGION=${AWS_REGION}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

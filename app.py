@@ -11,10 +11,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['ENV'] = os.environ.get('FLASK_ENV', 'production')
 
+
 def load_esg_data():
     """Load ESG scores from CSV"""
     try:
-        df = pd.read_csv('esg_scores.csv')
+        df = pd.read_csv('./data/esg_scores.csv')
         return df
     except Exception as e:
         print(f"Error loading ESG data: {e}")
@@ -23,7 +24,7 @@ def load_esg_data():
 def load_articles_data():
     """Load articles with ESG scores from CSV"""
     try:
-        df = pd.read_csv('articles_scored.csv')
+        df = pd.read_csv('./data/articles_scored.csv')
         # Convert date to datetime
         df['date'] = pd.to_datetime(df['date'])
         return df
