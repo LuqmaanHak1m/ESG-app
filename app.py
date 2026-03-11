@@ -104,11 +104,11 @@ def calculate_category_scores(esg_data, company):
     for category in ['Environmental', 'Social', 'Governance']:
         cat_data = [row for row in company_data if row['category'] == category]
         if cat_data:
-            scores = [row['score'] for row in cat_data]
+            scores = [float(row['score']) for row in cat_data]
             avg_score = sum(scores) / len(scores)
             categories[category] = {
                 'score': round(avg_score, 2),
-                'metrics': [{'metric': row['metric'], 'score': row['score']} for row in cat_data]
+                'metrics': [{'metric': row['metric'], 'score': float(row['score'])} for row in cat_data]
             }
     
     return categories
@@ -205,7 +205,7 @@ def calculate_adjusted_scores(original_categories, processed_articles, company):
         
         for metric in category_data['metrics']:
             metric_name = metric['metric']
-            original_score = metric['score']
+            original_score = float(metric['score'])
             
             # Find matching impact (handle slight name variations)
             impact = 0
@@ -292,6 +292,15 @@ def analytics_for_company(company_name):
     get_analytics(company_name)
 
     return render_template('analytics.html', companies=companies)
+
+@app.route('/risk-assessment')
+def risk_assessment():
+    """ESG Risk Assessment page"""
+    articles_data = load_articles_data()
+    companies = list(set([row['company_name'] for row in articles_data]))
+    companies = [c.capitalize() for c in companies]
+    companies.sort()
+    return render_template('risk_assessment.html', companies=companies)
 
 @app.route('/api/company/<company_name>')
 def get_company_data(company_name):
@@ -593,6 +602,74 @@ def get_analytics(company_name):
     return jsonify({
         'company': correct_company_name.capitalize(),
         'historical_data': historical_data
+    })
+
+@app.route('/api/risk-assessment')
+def get_risk_assessment():
+    """API endpoint to get ESG risk assessment for all companies"""
+    esg_data = load_esg_data()
+    articles_data = load_articles_data()
+    
+    if not articles_data:
+        return jsonify({'error': 'No data available'}), 404
+    
+    # Get unique companies
+    companies = list(set([row['company_name'] for row in articles_data]))
+    
+    risk_data = []
+    
+    for company in companies:
+        # Get ESG scores for this company
+        company_esg = [row for row in esg_data if row['company'].lower() == company.lower()]
+        
+        # Calculate category averages
+        categories = {}
+        for category in ['Environmental', 'Social', 'Governance']:
+            cat_data = [row for row in company_esg if row['category'] == category]
+            if cat_data:
+                scores = [float(row['score']) for row in cat_data]
+                avg_score = sum(scores) / len(scores)
+                categories[category] = round(avg_score, 2)
+            else:
+                categories[category] = 0.0
+        
+        # Calculate overall score
+        overall_score = round((categories['Environmental'] + categories['Social'] + categories['Governance']) / 3, 2)
+        
+        # Determine risk status based on thresholds
+        # Healthy: overall >= 3.5
+        # Watchlist: 2.5 <= overall < 3.5
+        # High Risk: overall < 2.5
+        if overall_score >= 3.5:
+            risk_status = 'Healthy'
+            recommended_action = 'Continue Monitoring'
+            status_class = 'healthy'
+        elif overall_score >= 2.5:
+            risk_status = 'Watchlist'
+            recommended_action = 'Investigate'
+            status_class = 'watchlist'
+        else:
+            risk_status = 'High Risk'
+            recommended_action = 'Escalate'
+            status_class = 'high-risk'
+        
+        risk_data.append({
+            'company': company.capitalize(),
+            'overall_score': overall_score,
+            'environmental_score': categories['Environmental'],
+            'social_score': categories['Social'],
+            'governance_score': categories['Governance'],
+            'risk_status': risk_status,
+            'recommended_action': recommended_action,
+            'status_class': status_class
+        })
+    
+    # Sort by overall score (descending)
+    risk_data.sort(key=lambda x: x['overall_score'], reverse=True)
+    
+    return jsonify({
+        'companies': risk_data,
+        'count': len(risk_data)
     })
 
 @app.route('/health')
