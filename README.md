@@ -6,23 +6,24 @@ A cloud-native Flask application for monitoring and analyzing Environmental, Soc
 
 - **Multi-page dashboard** with home, all news, company-specific, and analytics pages
 - **Real-time ESG data** from cloud PostgreSQL database
-- **Risk assessment** with company-wide ESG risk status
+- **Risk assessment** with company-wide ESG risk status and recommended actions
 - **Historical analytics** showing ESG score trends over time
 - **News aggregation** with ESG impact scoring
 - **Responsive design** for desktop and mobile
+- **Production-ready** with gunicorn WSGI server
 
 ## Architecture
 
 - **Frontend**: Flask + HTML/CSS/JavaScript with Chart.js
-- **Backend**: Python Flask application
+- **Backend**: Python Flask application with gunicorn
 - **Database**: PostgreSQL (cloud-hosted only)
-- **Deployment**: Docker containerized
+- **Deployment**: Docker containerized, cloud-native
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker installed
+- Docker and Docker Compose installed
 - PostgreSQL database (AWS RDS, Google Cloud SQL, Azure Database, etc.)
 - Database URL with credentials
 
@@ -34,23 +35,17 @@ git clone <repository-url>
 cd esg-dashboard
 ```
 
-2. **Create environment file**
+2. **Set up database schema**
 ```bash
-cp .env.example .env
-# Edit .env and add your DATABASE_URL
+psql postgresql://user:password@host:5432/db < schema.sql
 ```
 
-3. **Set up database schema**
+3. **Build and run with Docker**
 ```bash
-psql $DATABASE_URL < schema.sql
+DATABASE_URL=postgresql://user:password@host:5432/db docker-compose up --build
 ```
 
-4. **Build and run with Docker**
-```bash
-docker-compose up --build
-```
-
-5. **Access the application**
+4. **Access the application**
 Open `http://localhost:5000` in your browser
 
 ## Configuration
@@ -58,14 +53,13 @@ Open `http://localhost:5000` in your browser
 ### Environment Variables
 
 - `DATABASE_URL` - PostgreSQL connection string (required)
-- `FLASK_ENV` - Flask environment (production/development)
-- `SECRET_KEY` - Flask secret key (optional)
-
-See `.env.example` for details.
+  - Format: `postgresql://username:password@host:port/database`
+- `FLASK_ENV` - Flask environment (default: production)
+- `SECRET_KEY` - Flask secret key (optional, uses default in development)
 
 ## Database
 
-The application uses three PostgreSQL tables:
+The application requires three PostgreSQL tables:
 
 - **articles** - ESG news articles
 - **article_scores** - LLM-generated ESG scores for articles
@@ -76,7 +70,7 @@ Run `schema.sql` to create tables:
 psql $DATABASE_URL < schema.sql
 ```
 
-See `DATABASE_SETUP.md` for detailed schema information.
+See `DATABASE_SETUP.md` for detailed schema and data population instructions.
 
 ## Pages
 
@@ -84,13 +78,13 @@ See `DATABASE_SETUP.md` for detailed schema information.
 Landing page with company overview and navigation
 
 ### All News
-Chronological view of all ESG news articles across companies
+Chronological view of all ESG news articles across companies with impact metrics
 
 ### Company Pages
 Detailed view of individual company:
 - ESG scores (Environmental, Social, Governance)
-- Recent news articles
-- Impact metrics
+- Recent news articles with impact badges
+- Adjusted scores based on article impacts
 
 ### Analytics
 Historical ESG score trends with line charts showing:
@@ -103,7 +97,8 @@ Historical ESG score trends with line charts showing:
 Company-wide risk dashboard showing:
 - Overall ESG scores
 - Risk status (Healthy, Watchlist, High Risk)
-- Recommended actions
+- Recommended actions (Continue Monitoring, Investigate, Escalate)
+- ESG breakdown by category
 
 ## API Endpoints
 
@@ -128,7 +123,7 @@ pip install -r requirements.txt
 # Set environment variables
 export DATABASE_URL=postgresql://user:password@host:5432/db
 
-# Run Flask app
+# Run Flask app (development)
 python app.py
 ```
 
@@ -142,21 +137,25 @@ docker-compose up --build
 
 ### Cloud Platforms
 
-See `DOCKER.md` for deployment instructions for:
-- AWS ECS
+The application is containerized and ready for deployment on:
+- AWS ECS, Fargate, or App Runner
 - Google Cloud Run
 - Azure Container Instances
-- Kubernetes
+- Kubernetes (any distribution)
+- Heroku Container Registry
+
+See `DOCKER.md` for detailed deployment instructions.
 
 ### Production Checklist
 
-- [ ] Use managed PostgreSQL service
+- [ ] Use managed PostgreSQL service (AWS RDS, Google Cloud SQL, etc.)
 - [ ] Set `SECRET_KEY` environment variable
-- [ ] Enable HTTPS/SSL
-- [ ] Set up database backups
+- [ ] Enable HTTPS/SSL with reverse proxy (Nginx, CloudFront, etc.)
+- [ ] Set up database backups and point-in-time recovery
 - [ ] Configure monitoring and logging
-- [ ] Use secrets management for credentials
+- [ ] Use secrets management for credentials (AWS Secrets Manager, etc.)
 - [ ] Set up auto-scaling if needed
+- [ ] Configure database connection pooling for high traffic
 
 ## Data Pipeline
 
@@ -164,11 +163,12 @@ Your data pipeline should populate the cloud database with:
 
 1. **Articles** - ESG news from various sources
 2. **Article Scores** - LLM-generated ESG impact scores
-3. **ESG Scores** - Company metrics from data providers
+3. **ESG Scores** - Company metrics from data providers (LSEG, etc.)
 
 Example Python code:
 ```python
 import psycopg2
+import os
 
 conn = psycopg2.connect(os.getenv('DATABASE_URL'))
 cursor = conn.cursor()
@@ -197,24 +197,27 @@ conn.close()
 
 ```
 .
-├── app.py                  # Flask application
-├── requirements.txt        # Python dependencies
-├── schema.sql             # Database schema
-├── Dockerfile             # Docker container definition
-├── docker-compose.yml     # Docker Compose configuration
-├── DATABASE_SETUP.md      # Database setup guide
-├── DOCKER.md              # Docker deployment guide
-├── .env.example           # Environment variables template
-├── templates/             # HTML templates
-│   ├── base.html         # Base template with navbar
-│   ├── index.html        # Home page
-│   ├── all_news.html     # All news page
-│   ├── company.html      # Company detail page
-│   ├── analytics.html    # Analytics page
-│   └── risk_assessment.html # Risk assessment page
-└── static/               # Static files
+├── app.py                      # Flask application
+├── requirements.txt            # Python dependencies
+├── schema.sql                  # Database schema
+├── Dockerfile                  # Docker container definition
+├── docker-compose.yml          # Docker Compose configuration
+├── DATABASE_SETUP.md           # Database setup guide
+├── DOCKER.md                   # Docker deployment guide
+├── README.md                   # This file
+├── .env                        # Environment variables (not in git)
+├── .gitignore                  # Git ignore rules
+├── .dockerignore               # Docker ignore rules
+├── templates/                  # HTML templates
+│   ├── base.html              # Base template with navbar
+│   ├── index.html             # Home page
+│   ├── all_news.html          # All news page
+│   ├── company.html           # Company detail page
+│   ├── analytics.html         # Analytics page
+│   └── risk_assessment.html   # Risk assessment page
+└── static/                     # Static files
     └── css/
-        └── style.css     # Application styles
+        └── style.css          # Application styles
 ```
 
 ## Cloud-Only Architecture
@@ -223,8 +226,9 @@ This application is designed for cloud deployment:
 
 - **No local data storage** - All data comes from cloud database
 - **Stateless application** - Can be scaled horizontally
-- **Environment-based configuration** - Uses environment variables
-- **Container-ready** - Docker image for easy deployment
+- **Environment-based configuration** - Uses environment variables only
+- **Container-ready** - Docker image with gunicorn for production
+- **Database-driven** - All data persisted in cloud PostgreSQL
 
 ## Troubleshooting
 
@@ -232,6 +236,7 @@ This application is designed for cloud deployment:
 - Verify `DATABASE_URL` is correct
 - Check firewall/security groups allow connections
 - Ensure database exists and is accessible
+- Test connection: `psql $DATABASE_URL -c "SELECT 1;"`
 
 ### No data showing
 - Verify tables exist: `psql $DATABASE_URL -c "\dt"`
@@ -240,8 +245,8 @@ This application is designed for cloud deployment:
 
 ### Application won't start
 - Check Docker logs: `docker-compose logs esg-app`
-- Verify environment variables are set
-- Ensure database is accessible
+- Verify environment variables are set: `docker-compose exec esg-app env | grep DATABASE_URL`
+- Ensure database is accessible and tables exist
 
 ## License
 
@@ -250,6 +255,6 @@ See LICENSE file for details.
 ## Support
 
 For issues or questions, please refer to:
-- `DATABASE_SETUP.md` - Database configuration
-- `DOCKER.md` - Docker deployment
-- `app.py` - Application code
+- `DATABASE_SETUP.md` - Database configuration and schema
+- `DOCKER.md` - Docker and cloud deployment
+- `app.py` - Application code and API endpoints
