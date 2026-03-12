@@ -24,3 +24,7 @@ build/
 *~
 .env.local
 .env.*.local
+data/
+*.csv
+articles_scored.csv
+esg_scores.csv

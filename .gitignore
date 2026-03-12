@@ -57,3 +57,9 @@ htmlcov/
 
 # Scraped data
 page.html
+
+# Local data (cloud-only project)
+data/
+*.csv
+articles_scored.csv
+esg_scores.csv

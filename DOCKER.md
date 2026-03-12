@@ -1,94 +1,200 @@
-# Docker Setup Guide
+# Docker Setup Guide - Cloud-Only
 
-This application is containerized with Docker and supports both local CSV storage and future cloud storage integration.
+This application is containerized with Docker and connects exclusively to cloud PostgreSQL databases. No local data storage is used.
+
+## Prerequisites
+
+- Docker installed
+- PostgreSQL database (AWS RDS, Google Cloud SQL, Azure Database, etc.)
+- Database URL with connection credentials
 
 ## Quick Start
 
-### Prerequisites
-- Docker and Docker Compose installed
-- CSV data files (`esg_scores.csv` and `articles_scored.csv`)
+### 1. Set up your cloud database
 
-### Running with Local Storage (Default)
+Create a PostgreSQL database on your cloud provider and run the schema:
 
-1. **Create data directory and copy CSV files:**
 ```bash
-mkdir -p data
-cp esg_scores.csv data/
-cp articles_scored.csv data/
+psql postgresql://user:password@your-host:5432/your_db < schema.sql
 ```
 
-2. **Build and run with Docker Compose:**
+### 2. Set DATABASE_URL environment variable
+
+```bash
+export DATABASE_URL=postgresql://user:password@your-host:5432/your_db
+```
+
+### 3. Build and run with Docker
+
 ```bash
 docker-compose up --build
 ```
 
-3. **Access the application:**
-- Open browser to `http://localhost:5000`
+The application will start and connect to your cloud database.
 
-### Running with Docker Only
+### 4. Access the application
+
+Open browser to `http://localhost:5000`
+
+## Database Configuration
+
+The application requires the `DATABASE_URL` environment variable pointing to your PostgreSQL database.
+
+**Format:**
+```
+postgresql://username:password@host:port/database
+```
+
+**Examples:**
+
+AWS RDS:
+```
+postgresql://admin:password@my-db.xxxxx.us-east-1.rds.amazonaws.com:5432/esg_db
+```
+
+Google Cloud SQL:
+```
+postgresql://postgres:password@35.x.x.x:5432/esg_db
+```
+
+Azure Database for PostgreSQL:
+```
+postgresql://user@servername:password@servername.postgres.database.azure.com:5432/esg_db
+```
+
+## Running with Docker
+
+### Local development
 
 ```bash
-# Build the image
+docker-compose up --build
+```
+
+### Production deployment
+
+```bash
+DATABASE_URL=postgresql://user:password@host:5432/db docker-compose up -d
+```
+
+### With custom environment file
+
+Create `.env` file:
+```
+DATABASE_URL=postgresql://user:password@host:5432/db
+FLASK_ENV=production
+```
+
+Then run:
+```bash
+docker-compose up --build
+```
+
+## Database Schema
+
+The application requires three tables. Run `schema.sql` on your cloud database:
+
+```bash
+psql $DATABASE_URL < schema.sql
+```
+
+**Tables:**
+- `articles` - ESG news articles
+- `article_scores` - LLM-generated ESG scores
+- `esg_scores` - Company ESG metrics
+
+See `DATABASE_SETUP.md` for detailed schema information.
+
+## Data Population
+
+Your data pipeline should populate the cloud database with:
+
+1. Articles from news sources
+2. ESG scores from LLM analysis
+3. Company metrics from data providers
+
+The Flask app reads directly from the cloud database.
+
+## Health Check
+
+```bash
+curl http://localhost:5000/health
+```
+
+## Troubleshooting
+
+### Connection refused
+
+1. Verify DATABASE_URL is correct:
+```bash
+echo $DATABASE_URL
+```
+
+2. Test connection manually:
+```bash
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+3. Check firewall/security groups allow connections
+
+### No data showing
+
+1. Verify tables exist:
+```bash
+psql $DATABASE_URL -c "\dt"
+```
+
+2. Check data in tables:
+```bash
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM articles;"
+```
+
+3. View app logs:
+```bash
+docker-compose logs esg-app
+```
+
+## Production Deployment
+
+### Cloud Platforms
+
+**AWS ECS:**
+```bash
 docker build -t esg-dashboard .
-
-# Run the container
-docker run -p 5000:5000 -v $(pwd)/data:/app/data esg-dashboard
+aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+docker tag esg-dashboard:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/esg-dashboard:latest
+docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/esg-dashboard:latest
 ```
 
-## Configuration
-
-### Local Storage (Default)
-No additional configuration needed. CSV files should be in the `data/` directory.
-
-### AWS S3 Storage (Future)
-
-1. **Install boto3:**
+**Google Cloud Run:**
 ```bash
-pip install boto3
+docker build -t gcr.io/$PROJECT_ID/esg-dashboard .
+docker push gcr.io/$PROJECT_ID/esg-dashboard
+gcloud run deploy esg-dashboard \
+  --image gcr.io/$PROJECT_ID/esg-dashboard \
+  --set-env-vars DATABASE_URL=$DATABASE_URL \
+  --platform managed
 ```
 
-2. **Create `.env` file:**
+**Azure Container Instances:**
 ```bash
-cp .env.example .env
+docker build -t esg-dashboard .
+az acr build --registry $REGISTRY_NAME --image esg-dashboard:latest .
+az container create \
+  --resource-group $RESOURCE_GROUP \
+  --name esg-dashboard \
+  --image $REGISTRY_NAME.azurecr.io/esg-dashboard:latest \
+  --environment-variables DATABASE_URL=$DATABASE_URL
 ```
 
-3. **Update `.env` with AWS credentials:**
-```
-DATA_SOURCE=aws
-AWS_ACCESS_KEY_ID=your-key
-AWS_SECRET_ACCESS_KEY=your-secret
-AWS_S3_BUCKET=your-bucket
-AWS_REGION=us-east-1
-```
+### Best Practices
 
-4. **Run with environment file:**
-```bash
-docker-compose --env-file .env up
-```
-
-### Google Cloud Storage (Future)
-
-1. **Install google-cloud-storage:**
-```bash
-pip install google-cloud-storage
-```
-
-2. **Update `.env`:**
-```
-DATA_SOURCE=gcp
-GCP_PROJECT_ID=your-project
-GCP_BUCKET_NAME=your-bucket
-GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
-```
-
-3. **Mount credentials file:**
-```bash
-docker run -p 5000:5000 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/credentials.json:/app/credentials.json \
-  --env-file .env \
-  esg-dashboard
-```
+1. **Use managed PostgreSQL** - AWS RDS, Google Cloud SQL, Azure Database
+2. **Set SECRET_KEY** in environment
+3. **Use production WSGI server** - Gunicorn is included
+4. **Add reverse proxy** - Nginx for SSL/TLS
+5. **Enable database backups** - Automated daily backups
+6. **Monitor logs** - CloudWatch, Stackdriver, or Azure Monitor
+7. **Use secrets management** - AWS Secrets Manager, Google Secret Manager, etc.
 
 ## File Structure
 
@@ -97,72 +203,25 @@ docker run -p 5000:5000 \
 ├── Dockerfile              # Container definition
 ├── docker-compose.yml      # Docker Compose configuration
 ├── .dockerignore          # Files to exclude from Docker build
-├── .env.example           # Environment variables template
-├── data_handler.py        # Data storage abstraction layer
 ├── app.py                 # Flask application
 ├── requirements.txt       # Python dependencies
-├── data/                  # Local CSV storage (mounted volume)
-│   ├── esg_scores.csv
-│   └── articles_scored.csv
-├── templates/             # HTML templates
-├── static/                # CSS and JavaScript
-└── DOCKER.md             # This file
+├── schema.sql            # Database schema
+├── DATABASE_SETUP.md     # Database setup guide
+├── DOCKER.md             # This file
+├── templates/            # HTML templates
+└── static/               # CSS and JavaScript
 ```
 
-## Data Handler Architecture
+## Environment Variables
 
-The `data_handler.py` provides an abstraction layer for data storage:
+- `DATABASE_URL` - PostgreSQL connection string (required)
+- `FLASK_ENV` - Flask environment (production/development)
+- `SECRET_KEY` - Flask secret key (optional, uses default in development)
 
-- **LocalDataHandler**: Reads/writes CSV files from local filesystem
-- **S3DataHandler**: Reads/writes from AWS S3 (requires boto3)
-- **GCPDataHandler**: Reads/writes from Google Cloud Storage (requires google-cloud-storage)
+## Notes
 
-To add a new storage provider:
-1. Create a new class inheriting from `DataHandler`
-2. Implement `load_csv()` and `save_csv()` methods
-3. Update `get_data_handler()` factory function
-
-## Health Check
-
-The container includes a health check endpoint:
-```bash
-curl http://localhost:5000/health
-```
-
-## Troubleshooting
-
-### CSV files not found
-- Ensure `data/` directory exists
-- Verify CSV files are in `data/` directory
-- Check Docker volume mount: `docker inspect esg-dashboard`
-
-### Permission denied errors
-- Ensure `data/` directory has proper permissions
-- On Linux: `chmod 755 data/`
-
-### Cloud storage connection issues
-- Verify credentials are correct
-- Check environment variables: `docker exec esg-dashboard env`
-- Review logs: `docker logs esg-dashboard`
-
-## Production Deployment
-
-For production, consider:
-
-1. **Use environment variables** instead of `.env` file
-2. **Set proper SECRET_KEY** in environment
-3. **Use a production WSGI server** (Gunicorn):
-   ```dockerfile
-   CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
-   ```
-4. **Add reverse proxy** (Nginx) for SSL/TLS
-5. **Use managed cloud storage** (S3, GCS, Azure Blob)
-6. **Implement proper logging** and monitoring
-
-## Scaling
-
-For horizontal scaling:
-- Use Docker Swarm or Kubernetes
-- Mount shared cloud storage for data
-- Use load balancer (Nginx, HAProxy)
-- Consider read-only replicas for analytics
+- No local data storage
+- All data comes from cloud database
+- No CSV files or local files
+- Stateless application - can be scaled horizontally
+- Database connection pooling recommended for production

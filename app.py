@@ -57,6 +57,11 @@ def load_articles_data():
             return []
         
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute("SELECT COUNT(*) FROM articles;")
+        ans = cursor.fetchone()
+        print(ans)
+        
         cursor.execute("""
             SELECT 
                 a.id,
@@ -81,7 +86,7 @@ def load_articles_data():
                 COALESCE(s.shareholder_rights, 0) as shareholder_rights,
                 COALESCE(s.conduct_anti_corruption, 0) as conduct_anti_corruption,
                 COALESCE(s.tax_transparency_accounting, 0) as tax_transparency_accounting
-            FROM articles a
+            FROM public.articles a
             LEFT JOIN article_scores s ON a.id = s.article_id
             ORDER BY a.published_at DESC
         """)
