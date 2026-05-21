@@ -1,6 +1,6 @@
 # ESG Dashboard
 
-A cloud-native Flask application for monitoring and analyzing Environmental, Social, and Governance (ESG) metrics across companies.
+A cloud-native Flask application for monitoring and analysing Environmental, Social and Governance (ESG) metrics across companies.
 
 ## Features
 
@@ -71,34 +71,6 @@ psql $DATABASE_URL < schema.sql
 ```
 
 See `DATABASE_SETUP.md` for detailed schema and data population instructions.
-
-## Pages
-
-### Home
-Landing page with company overview and navigation
-
-### All News
-Chronological view of all ESG news articles across companies with impact metrics
-
-### Company Pages
-Detailed view of individual company:
-- ESG scores (Environmental, Social, Governance)
-- Recent news articles with impact badges
-- Adjusted scores based on article impacts
-
-### Analytics
-Historical ESG score trends with line charts showing:
-- Environmental score over time
-- Social score over time
-- Governance score over time
-- Overall ESG score
-
-### Risk Assessment
-Company-wide risk dashboard showing:
-- Overall ESG scores
-- Risk status (Healthy, Watchlist, High Risk)
-- Recommended actions (Continue Monitoring, Investigate, Escalate)
-- ESG breakdown by category
 
 ## API Endpoints
 
@@ -193,6 +165,42 @@ cursor.close()
 conn.close()
 ```
 
+## Pages Screenshots
+
+### Home
+![Home page screenshot](/screenshots/home_page.png)
+Landing page with company overview and navigation
+
+### All News
+![All news page screenshot](/screenshots/all_news.png)
+Chronological view of all ESG news articles across companies with impact metrics
+
+### Company Pages
+![Company-specific page screenshot 1](/screenshots/company_specific1.png)
+![Company-specific page screenshot 1](/screenshots/company_specific2.png)
+![Company-specific page screenshot 1](/screenshots/company_specific3.png)
+Detailed view of individual company:
+- ESG scores (Environmental, Social, Governance)
+- Recent news articles with impact badges
+- Adjusted scores based on article impacts
+
+### Analytics
+![Analytics page screenshot 1](/screenshots/analytics_pic1.png)
+![Analytics page screenshot 2](/screenshots/analytics_pic2.png)
+Historical ESG score trends with line charts showing:
+- Environmental score over time
+- Social score over time
+- Governance score over time
+- Overall ESG score
+
+### Risk Assessment
+![Risk assessment page screenshot 1](/screenshots/risk_assessment.png)
+Company-wide risk dashboard showing:
+- Overall ESG scores
+- Risk status (Healthy, Watchlist, High Risk)
+- Recommended actions (Continue Monitoring, Investigate, Escalate)
+- ESG breakdown by category
+
 ## Project Structure
 
 ```
@@ -258,3 +266,5 @@ For issues or questions, please refer to:
 - `DATABASE_SETUP.md` - Database configuration and schema
 - `DOCKER.md` - Docker and cloud deployment
 - `app.py` - Application code and API endpoints
+
+
