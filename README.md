@@ -1,6 +1,9 @@
 # ESG Dashboard
 
 A cloud-native Flask application for monitoring and analysing Environmental, Social and Governance (ESG) metrics across companies.
+![Home page screenshot](/screenshots/home_page.png)
+
+(For more images [go to pages](#pages-screenshots))
 
 ## Features
 
