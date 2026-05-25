@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: esg-dashboard
+    runtime: docker
+    plan: free
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: FLASK_ENV
+        value: production
+
+      - key: DATABASE_URL
+        sync: false
